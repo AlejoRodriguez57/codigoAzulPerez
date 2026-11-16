@@ -1,382 +1,263 @@
-import { useEffect, useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
-  Alert,
   ActivityIndicator,
+  Alert,
 } from "react-native";
-import { router } from "expo-router";
-import { auth } from "../../services/firebase";
-import { obtenerUsuarios, sumarPunto } from "../../services/api";
-import {
-  onAuthStateChanged,
-  signOut,
-  User,
-} from "firebase/auth";
+
+import { useRouter } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
+
+import { auth } from "../services/firebase";
+import { apiRequest } from "../services/api";
 
 type Usuario = {
-  id: string;
-  email: string;
+  id_usuario: string;
   nombre: string;
-  puntuacion: number;
+  email: string;
+  rol: "admin" | "empleado";
+  zona?: string;
 };
 
 export default function Index() {
+  const router = useRouter();
+
   const [usuario, setUsuario] = useState<User | null>(null);
-  const [cargandoAuth, setCargandoAuth] = useState(true);
+  const [cargando, setCargando] = useState(true);
+  const [errorPerfil, setErrorPerfil] = useState(false);
 
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [cargandoUsuarios, setCargandoUsuarios] = useState(false);
-
-  const [sumandoPunto, setSumandoPunto] = useState(false);
-
-  // Verificar si hay usuario logueado
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUsuario(user);
-      setCargandoAuth(false);
 
       if (!user) {
-        router.replace("/login");
+        setCargando(false);
+        setErrorPerfil(false);
+        return;
+      }
+
+      setCargando(true);
+      setErrorPerfil(false);
+
+      try {
+        const perfil: Usuario = await apiRequest("/usuarios/me");
+
+        if (perfil.rol === "admin") {
+          router.replace("/admin");
+        } else if (perfil.rol === "empleado") {
+          router.replace("/empleado");
+        } else {
+          throw new Error("El usuario no tiene un rol válido.");
+        }
+      } catch (error) {
+        console.error("Error al obtener el perfil:", error);
+        setErrorPerfil(true);
+      } finally {
+        setCargando(false);
       }
     });
 
     return unsubscribe;
   }, []);
 
-  // Cargar leaderboard solamente si hay usuario autenticado
-  useEffect(() => {
-    if (!usuario) {
-      return;
-    }
-
-    cargarUsuarios();
-  }, [usuario]);
-
-  async function cargarUsuarios() {
-    try {
-      setCargandoUsuarios(true);
-
-      const data = await obtenerUsuarios();
-
-      setUsuarios(data);
-    } catch (error: any) {
-      console.error("ERROR GET USUARIOS:", error);
-
-      Alert.alert(
-        "Error",
-        error.message || "No se pudieron cargar los usuarios"
-      );
-    } finally {
-      setCargandoUsuarios(false);
-    }
+  function irLogin() {
+    router.push("/login");
   }
 
-  async function agregarPunto() {
+  function irRegistro() {
+    router.push("/registro");
+  }
+
+  function irBoton() {
+    router.push("/boton");
+  }
+
+  async function reintentar() {
+    if (!auth.currentUser) return;
+
+    setCargando(true);
+    setErrorPerfil(false);
+
     try {
-      if (!usuario) {
-        router.replace("/login");
-        return;
+      // Fuerza una nueva lectura del perfil
+      const perfil: Usuario = await apiRequest("/usuarios/me");
+
+      if (perfil.rol === "admin") {
+        router.replace("/admin");
+      } else if (perfil.rol === "empleado") {
+        router.replace("/empleado");
+      } else {
+        throw new Error("El usuario no tiene un rol válido.");
       }
-
-      setSumandoPunto(true);
-
-      const token = await usuario.getIdToken();
-
-      await sumarPunto(token);
-
-      await cargarUsuarios();
-    } catch (error: any) {
-      console.error("ERROR SUMANDO PUNTO:", error);
-
+    } catch (error) {
+      console.error(error);
+      setErrorPerfil(true);
       Alert.alert(
         "Error",
-        error.message || "No se pudo sumar el punto"
+        "No se pudo obtener el perfil. Verificá tu conexión o consultá con un administrador."
       );
     } finally {
-      setSumandoPunto(false);
+      setCargando(false);
     }
   }
 
-  async function cerrarSesion() {
-    try {
-      await signOut(auth);
-
-      // Mandar explícitamente al login
-      router.replace("/login");
-    } catch (error) {
-      console.error("ERROR CERRANDO SESIÓN:", error);
-
-      Alert.alert(
-        "Error",
-        "No se pudo cerrar la sesión"
-      );
-    }
-  }
-
-  // Mientras Firebase averigua si hay sesión
-  if (cargandoAuth) {
+  if (cargando) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>
-          Comprobando sesión...
+      <View style={styles.contenedor}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.textoCargando}>
+          Verificando usuario...
         </Text>
       </View>
     );
   }
 
-  // Si no hay sesión, no mostramos NADA del ranking
-  if (!usuario) {
-    return null;
+  if (errorPerfil && usuario) {
+    return (
+      <View style={styles.contenedor}>
+        <Text style={styles.titulo}>No se pudo cargar tu perfil</Text>
+
+        <Text style={styles.descripcion}>
+          Tu sesión está iniciada, pero no pudimos obtener tus datos.
+          Intentá nuevamente.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.boton}
+          onPress={reintentar}
+        >
+          <Text style={styles.textoBoton}>Reintentar</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
-  const miUsuario = usuarios.find(
-    (item) => item.id === usuario.uid
-  );
-
+  // Usuario no autenticado
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>🏆 Ranking</Text>
+    <View style={styles.contenedor}>
+      <Text style={styles.titulo}>Codigo Azul</Text>
 
-          <Text style={styles.email}>
-            {usuario.email}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={cerrarSesion}
-        >
-          <Text style={styles.logoutText}>
-            Salir
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* PUNTUACIÓN */}
-      <View style={styles.myScore}>
-        <Text style={styles.myScoreTitle}>
-          Tu puntuación
-        </Text>
-
-        <Text style={styles.myScoreNumber}>
-          {miUsuario?.puntuacion ?? 0}
-        </Text>
-
-        <TouchableOpacity
-          style={styles.pointButton}
-          onPress={agregarPunto}
-          disabled={sumandoPunto}
-        >
-          <Text style={styles.pointButtonText}>
-            {sumandoPunto
-              ? "Sumando..."
-              : "+1 punto"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* LEADERBOARD */}
-      <Text style={styles.rankingTitle}>
-        Tabla de posiciones
+      <Text style={styles.descripcion}>
+        Bienvenido. Seleccioná cómo querés ingresar.
       </Text>
 
-      {cargandoUsuarios ? (
-        <View style={styles.loadingRanking}>
-          <ActivityIndicator size="large" />
+      <TouchableOpacity
+        style={styles.boton}
+        onPress={irLogin}
+      >
+        <Text style={styles.textoBoton}>Iniciar sesión</Text>
+      </TouchableOpacity>
 
-          <Text style={styles.loadingText}>
-            Cargando ranking...
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={usuarios}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item, index }) => (
-            <View
-              style={[
-                styles.userRow,
-                item.id === usuario.uid &&
-                  styles.myUserRow,
-              ]}
-            >
-              <Text style={styles.position}>
-                {index + 1}
-              </Text>
+      <TouchableOpacity
+        style={styles.botonSecundario}
+        onPress={irRegistro}
+      >
+        <Text style={styles.textoBotonSecundario}>Registrarse</Text>
+      </TouchableOpacity>
 
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>
-                  {item.nombre}
-                </Text>
+      <View style={styles.separador} />
 
-                <Text style={styles.userEmail}>
-                  {item.email}
-                </Text>
-              </View>
+      <Text style={styles.textoBotonPublico}>
+        ¿Necesitás activar una alerta?
+      </Text>
 
-              <Text style={styles.score}>
-                {item.puntuacion}
-              </Text>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No hay usuarios todavía.
-            </Text>
-          }
-        />
-      )}
+      <TouchableOpacity
+        style={styles.botonAlerta}
+        onPress={irBoton}
+      >
+        <Text style={styles.textoBoton}>
+          Configurar / Presionar botón
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  contenedor: {
     flex: 1,
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: "#f5f5f5",
-  },
-
-  loadingContainer: {
-    flex: 1,
+    backgroundColor: "#f3f4f6",
     justifyContent: "center",
     alignItems: "center",
+    padding: 25,
   },
 
-  loadingRanking: {
-    alignItems: "center",
-    marginTop: 30,
-  },
-
-  loadingText: {
-    marginTop: 10,
-    color: "#666",
-  },
-
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-
-  title: {
+  titulo: {
     fontSize: 30,
     fontWeight: "bold",
-  },
-
-  email: {
-    marginTop: 5,
-    color: "#666",
-  },
-
-  logoutButton: {
-    backgroundColor: "#ddd",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-  },
-
-  logoutText: {
-    color: "#d00",
-    fontWeight: "bold",
-  },
-
-  myScore: {
-    backgroundColor: "white",
-    borderRadius: 15,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 25,
-  },
-
-  myScoreTitle: {
-    fontSize: 18,
-    color: "#666",
-  },
-
-  myScoreNumber: {
-    fontSize: 50,
-    fontWeight: "bold",
-    marginVertical: 10,
-  },
-
-  pointButton: {
-    backgroundColor: "#222",
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-  },
-
-  pointButtonText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "bold",
-  },
-
-  rankingTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-
-  list: {
-    paddingBottom: 30,
-  },
-
-  userRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "white",
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-
-  myUserRow: {
-    borderWidth: 2,
-    borderColor: "#222",
-  },
-
-  position: {
-    width: 35,
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-
-  userInfo: {
-    flex: 1,
-  },
-
-  userName: {
-    fontSize: 17,
-    fontWeight: "bold",
-  },
-
-  userEmail: {
-    fontSize: 12,
-    color: "#777",
-    marginTop: 3,
-  },
-
-  score: {
-    fontSize: 22,
-    fontWeight: "bold",
-  },
-
-  emptyText: {
+    color: "#111827",
+    marginBottom: 12,
     textAlign: "center",
-    color: "#777",
-    marginTop: 20,
+  },
+
+  descripcion: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 30,
+    lineHeight: 23,
+  },
+
+  textoCargando: {
+    marginTop: 15,
+    fontSize: 16,
+    color: "#374151",
+  },
+
+  boton: {
+    width: "100%",
+    backgroundColor: "#2563eb",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  textoBoton: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  botonSecundario: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  textoBotonSecundario: {
+    color: "#2563eb",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  separador: {
+    width: "100%",
+    height: 1,
+    backgroundColor: "#d1d5db",
+    marginVertical: 25,
+  },
+
+  textoBotonPublico: {
+    fontSize: 15,
+    color: "#374151",
+    marginBottom: 15,
+  },
+
+  botonAlerta: {
+    width: "100%",
+    backgroundColor: "#dc2626",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
   },
 });

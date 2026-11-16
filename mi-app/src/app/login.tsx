@@ -1,24 +1,26 @@
+
 import { useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
+  StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../services/firebase";
 import { router } from "expo-router";
+import { auth } from "../services/firebase";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  async function iniciarSesion() {
-    if (!email || !password) {
-      Alert.alert("Error", "Completá email y contraseña");
+  async function ingresar() {
+    if (!email.trim() || !password) {
+      Alert.alert("Error", "Completá el email y la contraseña.");
       return;
     }
 
@@ -27,18 +29,28 @@ export default function Login() {
 
       await signInWithEmailAndPassword(
         auth,
-        email,
+        email.trim(),
         password
       );
 
       router.replace("/");
     } catch (error: any) {
-      console.error(error);
+      console.error("ERROR LOGIN:", error);
 
-      Alert.alert(
-        "Error",
-        "El email o la contraseña son incorrectos"
-      );
+      if (
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/user-not-found"
+      ) {
+        Alert.alert("Error", "Email o contraseña incorrectos.");
+      } else if (error.code === "auth/invalid-email") {
+        Alert.alert("Error", "El email no es válido.");
+      } else {
+        Alert.alert(
+          "Error",
+          error.message || "No se pudo iniciar sesión."
+        );
+      }
     } finally {
       setCargando(false);
     }
@@ -51,36 +63,47 @@ export default function Login() {
       <TextInput
         style={styles.input}
         placeholder="Email"
-        keyboardType="email-address"
-        autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
       />
 
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
-        secureTextEntry
         value={password}
         onChangeText={setPassword}
+        secureTextEntry
       />
 
       <TouchableOpacity
         style={styles.button}
-        onPress={iniciarSesion}
+        onPress={ingresar}
         disabled={cargando}
       >
-        <Text style={styles.buttonText}>
-          {cargando ? "Ingresando..." : "Iniciar sesión"}
-        </Text>
+        {cargando ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.buttonText}>Ingresar</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() => router.push("/registro")}
+        disabled={cargando}
       >
         <Text style={styles.link}>
-          ¿No tenés una cuenta? Registrate
+          ¿No tenés cuenta? Registrate
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => router.replace("/")}
+        disabled={cargando}
+      >
+        <Text style={styles.link}>Volver al inicio</Text>
       </TouchableOpacity>
     </View>
   );
@@ -91,24 +114,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 25,
+    backgroundColor: "#f5f5f5",
   },
-
   title: {
     fontSize: 30,
     fontWeight: "bold",
     marginBottom: 30,
     textAlign: "center",
   },
-
   input: {
+    backgroundColor: "white",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 8,
-    padding: 12,
+    padding: 13,
     marginBottom: 15,
     fontSize: 16,
   },
-
   button: {
     backgroundColor: "#222",
     padding: 15,
@@ -116,16 +138,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
   },
-
   buttonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
   },
-
   link: {
     textAlign: "center",
     marginTop: 20,
     fontSize: 15,
+    color: "#1769aa",
   },
 });

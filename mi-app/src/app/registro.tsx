@@ -6,95 +6,85 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../services/firebase";
-import { crearUsuario } from "../../services/api";
+
 import { router } from "expo-router";
+import { crearUsuario } from "../services/usuarios";
+import { Platform, Alert } from "react-native";
 
 export default function Registro() {
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [zona, setZona] = useState("");
   const [password, setPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  async function registrarse() {
-    if (!nombre || !email || !password || !confirmarPassword) {
-      Alert.alert("Error", "Completá todos los campos");
-      return;
-    }
-
-    if (password !== confirmarPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden");
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert(
-        "Error",
-        "La contraseña debe tener al menos 6 caracteres"
-      );
-      return;
-    }
-
-    try {
-      setCargando(true);
-
-      // 1. Crear usuario en Firebase Authentication
-      const resultado = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      // 2. Obtener el token del usuario autenticado
-      const token = await resultado.user.getIdToken();
-
-      // 3. Crear el usuario en nuestra API / Firestore
-      await crearUsuario(token, nombre);
-
-      // 4. Ir a la pantalla principal
-      Alert.alert(
-        "Cuenta creada",
-        "Tu cuenta fue creada correctamente"
-      );
-
-      router.replace("/");
-    } catch (error: any) {
-      console.error(error);
-
-      if (error.code === "auth/email-already-in-use") {
-        Alert.alert(
-          "Error",
-          "Ese email ya está registrado"
-        );
-      } else if (error.code === "auth/invalid-email") {
-        Alert.alert(
-          "Error",
-          "El email no es válido"
-        );
-      } else if (error.code === "auth/weak-password") {
-        Alert.alert(
-          "Error",
-          "La contraseña debe tener al menos 6 caracteres"
-        );
-      } else if (error.message?.includes("Network request failed")) {
-        Alert.alert(
-          "Error de conexión",
-          "No se pudo conectar con el servidor. Revisá la IP de la API."
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error.message || "No se pudo crear la cuenta"
-        );
-      }
-    } finally {
-      setCargando(false);
-    }
+// Agregá esta función dentro del componente Registro.
+function mostrarMensaje(titulo: string, mensaje: string) {
+  if (Platform.OS === "web") {
+    window.alert(`${titulo}\n\n${mensaje}`);
+  } else {
+    Alert.alert(titulo, mensaje);
   }
+}
+async function registrarse() {
+  if (
+    !nombre.trim() ||
+    !email.trim() ||
+    !zona.trim() ||
+    !password ||
+    !confirmarPassword
+  ) {
+    mostrarMensaje("Error", "Completá todos los campos obligatorios.");
+    return;
+  }
+
+  if (password !== confirmarPassword) {
+    mostrarMensaje("Error", "Las contraseñas no coinciden.");
+    return;
+  }
+
+  if (password.length < 6) {
+    mostrarMensaje("Error", "La contraseña debe tener al menos 6 caracteres.");
+    return;
+  }
+
+  try {
+    setCargando(true);
+
+    const respuesta = await crearUsuario({
+      nombre: nombre.trim(),
+      email: email.trim(),
+      password: password,
+      telefono: telefono.trim(),
+      zona: zona.trim(),
+    },);
+
+    console.log("USUARIO REGISTRADO:", respuesta);
+
+    mostrarMensaje(
+      "Cuenta creada",
+      "Tu cuenta y tu perfil fueron creados correctamente."
+    );
+
+    router.replace("/login");
+
+  } catch (error: any) {
+    console.error("ERROR REGISTRO:", error);
+
+    mostrarMensaje(
+      "Error al registrar",
+      error.message || "No se pudo completar el registro."
+    );
+
+  } finally {
+    setCargando(false);
+  }
+}
+
 
   return (
     <View style={styles.container}>
@@ -102,7 +92,7 @@ export default function Registro() {
 
       <TextInput
         style={styles.input}
-        placeholder="Nombre"
+        placeholder="Nombre completo"
         value={nombre}
         onChangeText={setNombre}
         autoCapitalize="words"
@@ -111,27 +101,42 @@ export default function Registro() {
       <TextInput
         style={styles.input}
         placeholder="Email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
         value={email}
         onChangeText={setEmail}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Teléfono (opcional)"
+        value={telefono}
+        onChangeText={setTelefono}
+        keyboardType="phone-pad"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Zona"
+        value={zona}
+        onChangeText={setZona}
       />
 
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
-        secureTextEntry
         value={password}
         onChangeText={setPassword}
+        secureTextEntry
       />
 
       <TextInput
         style={styles.input}
         placeholder="Repetir contraseña"
-        secureTextEntry
         value={confirmarPassword}
         onChangeText={setConfirmarPassword}
+        secureTextEntry
       />
 
       <TouchableOpacity
@@ -139,17 +144,19 @@ export default function Registro() {
         onPress={registrarse}
         disabled={cargando}
       >
-        <Text style={styles.buttonText}>
-          {cargando ? "Creando..." : "Crear cuenta"}
-        </Text>
+        {cargando ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.buttonText}>Crear cuenta</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.push("/login")}
+        onPress={() => router.replace("/login")}
         disabled={cargando}
       >
         <Text style={styles.link}>
-          ¿Ya tenés una cuenta? Iniciá sesión
+          ¿Ya tenés cuenta? Iniciá sesión
         </Text>
       </TouchableOpacity>
     </View>
@@ -161,24 +168,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 25,
+    backgroundColor: "#f5f5f5",
   },
-
   title: {
     fontSize: 30,
     fontWeight: "bold",
-    marginBottom: 30,
+    marginBottom: 25,
     textAlign: "center",
   },
-
   input: {
+    backgroundColor: "white",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 8,
     padding: 12,
-    marginBottom: 15,
+    marginBottom: 12,
     fontSize: 16,
   },
-
   button: {
     backgroundColor: "#222",
     padding: 15,
@@ -186,16 +192,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
   },
-
   buttonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
   },
-
   link: {
     textAlign: "center",
     marginTop: 20,
     fontSize: 15,
+    color: "#1769aa",
   },
 });

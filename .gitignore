@@ -67,3 +67,6 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+mi-app/src/services/firebase.js
+functions/codigoazulperez-firebase-adminsdk-fbsvc-064f9fa63a.json
