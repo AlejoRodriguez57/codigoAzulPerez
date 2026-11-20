@@ -40,6 +40,7 @@ type Alerta = {
   id_alerta: string;
   id_boton: string;
   zona: string;
+  habitacion: string;
   activo: boolean;
   fecha_inicio: any;
   fecha_final: any;
@@ -58,7 +59,7 @@ export default function Empleado() {
   useEffect(() => {
     async function configurarNotificaciones() {
       if (Platform.OS === "web") return;
-
+s
       try {
         const permisos = await Notifications.getPermissionsAsync();
 
@@ -109,6 +110,10 @@ export default function Empleado() {
     }
 
     mostrarMensaje(titulo, mensaje);
+  };
+
+  const obtenerBotonDeAlerta = (id_boton: string) => {
+  return botones.find((boton) => boton.id_boton === id_boton);
   };
 
   // Avisar cuando una alerta deja de estar activa.
@@ -289,20 +294,25 @@ export default function Empleado() {
               onRefresh={() => cargarDatos(true)}
             />
           }
-          renderItem={({ item }) => (
-            <View style={styles.alertCard}>
-              <Text style={styles.alertTitle}>
-                ALERTA ACTIVA
-              </Text>
+          renderItem={({ item }) => {
+            const boton = obtenerBotonDeAlerta(item.id_boton);
 
-              <Text>Botón: {item.id_boton}</Text>
-              <Text>Zona: {item.zona}</Text>
+            return (
+              <View style={styles.alertCard}>
+                <Text style={styles.alertTitle}>
+                  ALERTA ACTIVA
+                </Text>
 
-              <Text>
-                Inicio: {fechaLegible(item.fecha_inicio)}
-              </Text>
-            </View>
-          )}
+                <Text>Botón: {boton?.numero ?? "—"}</Text>
+                <Text>Zona: {boton?.zona ?? "—"}</Text>
+                <Text>Habitación: {boton?.habitacion ?? "—"}</Text>
+
+                <Text>
+                  Inicio: {fechaLegible(item.fecha_inicio)}
+                </Text>
+              </View>
+            );
+          }}
           ListEmptyComponent={
             <Text style={styles.empty}>
               No hay alertas activas en tu zona.

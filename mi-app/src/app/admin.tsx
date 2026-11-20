@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -115,6 +114,7 @@ export default function Admin() {
 
     if (seccion === "alertas") {
       setCampo1(String(item.id_boton ?? ""));
+      setCampo2(String(item.zona ?? ""));
     }
 
     setModalVisible(true);
@@ -169,13 +169,36 @@ export default function Admin() {
       }
 
       if (seccion === "alertas") {
-        if (!campo1.trim()) {
-          Alert.alert("Error", "Ingresá el ID del botón.");
+        const idAlerta = editando?.id_alerta || editando?.id;
+
+        if (editando && !idAlerta) {
+          mostrarMensaje("Error", "No se encontró el ID de la alerta.");
+          return;
+        }
+
+        if (!editando && !campo1.trim()) {
+          mostrarMensaje("Error", "Ingresá el ID del botón.");
           return;
         }
 
         if (editando) {
-          await editarAlerta(editando.id_alerta, campo1.trim());
+          if (editando.activo) {
+            mostrarMensaje(
+              "No permitido",
+              "Primero tenés que finalizar la alerta para poder modificarla."
+            );
+            return;
+          }
+
+          if (!campo2.trim()) {
+            mostrarMensaje("Error", "Ingresá el piso.");
+            return;
+          }
+
+          await editarAlerta(idAlerta, {
+            id_boton: campo1.trim(),
+            zona: campo2.trim(),
+          });
         } else {
           await crearAlerta(campo1.trim());
         }
@@ -184,7 +207,7 @@ export default function Admin() {
       setModalVisible(false);
       await cargarRegistros();
 
-      Alert.alert("Correcto", "Los cambios se guardaron.");
+      mostrarMensaje("Correcto", "Los cambios se guardaron.");
 
     } catch (error: any) {
       Alert.alert(
@@ -317,11 +340,11 @@ const confirmarEliminar = (item) => {
             Botón {item.numero}
             </Text>
 
-            <Text>UUID: {item.id_boton || item.id || "No disponible"}</Text>
+            <Text selectable>UUID: {item.id_boton || item.id || "No disponible"}</Text>
 
-            <Text>Habitación: {item.habitacion}</Text>
+            <Text selectable>Habitación: {item.habitacion}</Text>
 
-            <Text>Zona: {item.zona}</Text>
+            <Text selectable>Zona: {item.zona}</Text>
         </>
         )}
         {seccion === "usuarios" && (
@@ -330,15 +353,15 @@ const confirmarEliminar = (item) => {
             {item.nombre}
             </Text>
 
-            <Text>Email: {item.email}</Text>
+            <Text selectable>Email: {item.email}</Text>
 
-            <Text>UUID: {item.uid || item.id || "No disponible"}</Text>
+            <Text selectable>UUID: {item.uid || item.id || "No disponible"}</Text>
 
-            <Text>Teléfono: {item.telefono || "—"}</Text>
+            <Text selectable>Teléfono: {item.telefono || "—"}</Text>
 
-            <Text>Zona: {item.zona || "—"}</Text>
+            <Text selectable>Zona: {item.zona || "—"}</Text>
 
-            <Text>Rol: {item.rol}</Text>
+            <Text selectable>Rol: {item.rol}</Text>
         </>
         )}
 
@@ -353,19 +376,19 @@ const confirmarEliminar = (item) => {
             {item.activo ? "ALERTA ACTIVA" : "FINALIZADA"}
             </Text>
 
-            <Text>UUID: {item.id_alerta || item.id || "No disponible"}</Text>
+            <Text selectable>UUID: {item.id_alerta || item.id || "No disponible"}</Text>
 
-            <Text>Botón: {item.id_boton || "—"}</Text>
+            <Text selectable>Botón: {item.id_boton || "—"}</Text>
 
-            <Text>Zona: {item.zona || "—"}</Text>
+            <Text selectable>Zona: {item.zona || "—"}</Text>
 
-            <Text>
+            <Text selectable>
             Inicio: {item.fecha_inicio
                 ? new Date(item.fecha_inicio).toLocaleString()
                 : "—"}
             </Text>
 
-            <Text>
+            <Text selectable>
             Finalización: {item.fecha_final
                 ? new Date(item.fecha_final).toLocaleString()
                 : "—"}
@@ -405,7 +428,7 @@ const confirmarEliminar = (item) => {
         <View>
           <Text style={styles.title}>Administración</Text>
           <Text style={styles.subtitle}>
-            Gestión del sistema de alertas
+            Codigo azul panel de administracion
           </Text>
         </View>
 
@@ -463,13 +486,7 @@ const confirmarEliminar = (item) => {
         <FlatList
           data={registros}
           keyExtractor={(item, index) =>
-            String(
-              item.id_boton ||
-              item.id_usuario ||
-              item.uid ||
-              item.id_alerta ||
-              index
-            )
+            `${seccion}-${item.id_boton || item.id_usuario || item.uid || item.id_alerta || item.id || "registro"}-${index}`
           }
           renderItem={({ item }) => renderRegistro(item)}
           ListEmptyComponent={
@@ -572,13 +589,24 @@ const confirmarEliminar = (item) => {
             )}
 
             {seccion === "alertas" && (
-              <TextInput
-                style={styles.input}
-                placeholder="ID del botón"
-                value={campo1}
-                onChangeText={setCampo1}
-                autoCapitalize="none"
-              />
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ID del botón"
+                  value={campo1}
+                  onChangeText={setCampo1}
+                  autoCapitalize="none"
+                />
+
+                {editando && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="zona"
+                    value={campo2}
+                    onChangeText={setCampo2}
+                  />
+                )}
+              </>
             )}
 
             <TouchableOpacity

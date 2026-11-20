@@ -1,7 +1,7 @@
 
 import { auth } from "./firebase";
 
-const API_URL = "http://localhost:3000";
+const API_URL = "http://192.168.1.38:3000";
 
 export async function apiRequest(endpoint, options = {}) {
   if (!API_URL) {

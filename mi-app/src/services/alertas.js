@@ -30,13 +30,17 @@ export function crearAlerta(id_boton) {
 
 // PUT /alertas/:id (solo administrador; según las reglas del backend,
 // permite editar alertas finalizadas)
-export function editarAlerta(id_alerta, id_boton) {
-    return apiRequest(`/alertas/${encodeURIComponent(id_alerta)}`, {
-        method: "PUT",
-        body: JSON.stringify({
-            id_boton,
-        }),
-    });
+export function editarAlerta(id_alerta, datos) {
+  return apiRequest(
+    `/alertas/${encodeURIComponent(id_alerta)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        id_boton: datos.id_boton,
+        zona: datos.zona,
+      }),
+    }
+  );
 }
 
 // PUT /alertas/:id/finalizar

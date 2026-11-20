@@ -772,7 +772,7 @@ app.post(
 
 // PUT /alertas/:id
 // SOLO ADMIN
-// Permite modificar el boton asociado a una alerta finalizada.
+// Permite modificar el botón asociado y/o la zona de una alerta finalizada.
 
 app.put(
   "/alertas/:id",
@@ -780,13 +780,7 @@ app.put(
   verificarAdmin,
   async (req, res) => {
     try {
-      const { id_boton } = req.body;
-
-      if (!id_boton) {
-        return res.status(400).json({
-          error: "Falta id_boton",
-        });
-      }
+      const { id_boton, zona } = req.body;
 
       const ref = alertas.doc(req.params.id);
       const doc = await ref.get();
@@ -803,21 +797,60 @@ app.put(
         });
       }
 
-      const botonDoc = await botones.doc(id_boton).get();
+      const cambios = {};
 
-      if (!botonDoc.exists) {
-        return res.status(404).json({
-          error: "Boton no encontrado",
+      // Modificar botón si fue enviado
+      if (id_boton !== undefined) {
+        if (!id_boton) {
+          return res.status(400).json({
+            error: "El id_boton no puede estar vacío",
+          });
+        }
+
+        const botonDoc = await botones.doc(id_boton).get();
+
+        if (!botonDoc.exists) {
+          return res.status(404).json({
+            error: "Botón no encontrado",
+          });
+        }
+
+        cambios.id_boton = id_boton;
+
+        // Si se cambia el botón y no se envía una zona,
+        // se utiliza automáticamente la zona del nuevo botón.
+        if (zona === undefined) {
+          cambios.zona = botonDoc.data().zona;
+        }
+      }
+
+      // Modificar zona si fue enviada
+      if (zona !== undefined) {
+        if (typeof zona !== "string" || !zona.trim()) {
+          return res.status(400).json({
+            error: "La zona no puede estar vacía",
+          });
+        }
+
+        cambios.zona = zona.trim();
+      }
+
+      if (Object.keys(cambios).length === 0) {
+        return res.status(400).json({
+          error: "Debés enviar id_boton, zona o ambos",
         });
       }
 
-      await ref.update({
-        id_boton,
-        zona: botonDoc.data().zona,
-      });
+      await ref.update(cambios);
 
-      res.json({
-        mensaje: "Alerta actualizada",
+      const actualizado = await ref.get();
+
+      return res.status(200).json({
+        mensaje: "Alerta actualizada correctamente",
+        alerta: {
+          id: actualizado.id,
+          ...formatear(actualizado),
+        },
       });
 
     } catch (error) {
@@ -825,6 +858,7 @@ app.put(
     }
   }
 );
+
 
 // PUT /alertas/:id/finalizar
 // SOLO ADMIN

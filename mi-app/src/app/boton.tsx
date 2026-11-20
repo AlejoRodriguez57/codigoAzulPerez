@@ -115,7 +115,7 @@ export default function PantallaBoton() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>SISTEMA DE ALERTAS</Text>
+        <Text style={styles.eyebrow}>CODIGO AZUL</Text>
 
         <Text style={styles.title}>
           Panel de botón
@@ -259,17 +259,8 @@ export default function PantallaBoton() {
         </View>
       )}
 
-      <TouchableOpacity
-        onPress={() => router.replace("/")}
-        style={styles.backButton}
-      >
-        <Text style={styles.backText}>
-          Volver al inicio
-        </Text>
-      </TouchableOpacity>
-
       <Text style={styles.footer}>
-        Sistema de gestión de alertas
+        Codigo azul
       </Text>
     </ScrollView>
   );
